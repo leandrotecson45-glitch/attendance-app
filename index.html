@@ -6,7 +6,13 @@
 <title>Field Attendance PWA</title>
 
 <link rel="manifest" href="manifest.json">
+<link rel="manifest" href="./manifest.json">
 
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js');
+}
+</script>
 <style>
 body {font-family: Arial;margin:0;background:#0f2027;color:white;text-align:center}
 .container{max-width:420px;margin:auto;padding:15px}
