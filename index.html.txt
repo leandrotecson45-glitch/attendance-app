@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Field Attendance PWA</title>
+
+<link rel="manifest" href="manifest.json">
+
+<style>
+body {font-family: Arial;margin:0;background:#0f2027;color:white;text-align:center}
+.container{max-width:420px;margin:auto;padding:15px}
+input,button{width:100%;padding:10px;margin:5px 0;border-radius:8px;border:none}
+.in{background:#00c853;color:white}
+.out{background:#d50000;color:white}
+</style>
+</head>
+
+<body>
+<div class="container">
+<h3>📱 Attendance App (Installable)</h3>
+
+<input id="name" placeholder="Name">
+<input id="id" placeholder="Employee ID">
+
+<button class="in" onclick="timeIn()">Time In</button>
+<button class="out" onclick="timeOut()">Time Out</button>
+
+<p id="status"></p>
+</div>
+
+<script>
+let records = JSON.parse(localStorage.getItem('records')||"{}");
+
+function now(){return new Date().toLocaleString();}
+
+function timeIn(){
+ let idv=id.value;
+ let namev=name.value;
+ if(!idv||!namev) return alert('Fill up');
+ records[idv]={name:namev,in:now(),out:""};
+ save();
+ status.innerText="Time In Saved";
+}
+
+function timeOut(){
+ let idv=id.value;
+ if(records[idv]){
+  records[idv].out=now();
+ }
+ save();
+ status.innerText="Time Out Saved";
+}
+
+function save(){localStorage.setItem('records',JSON.stringify(records));}
+
+// SERVICE WORKER
+if ('serviceWorker' in navigator) {
+ navigator.serviceWorker.register('sw.js');
+}
+</script>
+</body>
+</html>
+
+
+<!-- manifest.json -->
+{
+  "name": "Field Attendance App",
+  "short_name": "Attendance",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#0f2027",
+  "theme_color": "#0f2027",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
+
+
+<!-- sw.js -->
+self.addEventListener('install', e => {
+ e.waitUntil(
+  caches.open('app').then(cache => cache.addAll(['index.html']))
+ );
+});
