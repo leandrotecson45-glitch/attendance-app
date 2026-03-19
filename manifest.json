@@ -1,7 +1,7 @@
 {
-  "name": "Field Attendance App",
+  "name": "Attendance App",
   "short_name": "Attendance",
-  "start_url": "index.html",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#0f2027",
   "theme_color": "#0f2027",
