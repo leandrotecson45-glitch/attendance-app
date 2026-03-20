@@ -3,23 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QA Live Map</title>
+<title>QA Full Tracking System</title>
 
-<!-- LEAFLET CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
 body{font-family:Arial;background:#0f2027;color:white;text-align:center}
 .container{max-width:420px;margin:auto;padding:15px}
 input,select,button{width:100%;padding:10px;margin:5px;border-radius:8px;border:none}
-.in{background:#00c853;color:white}
+.in{background:#00c853}
+.out{background:#d50000}
 #map{height:300px;margin-top:10px;border-radius:10px}
+table{width:100%;font-size:11px;margin-top:10px}
+td,th{border:1px solid #fff3;padding:5px}
 </style>
 </head>
 
 <body>
 <div class="container">
-<h3>📍 QA Live Tracker</h3>
+
+<h3>📍 QA Full Tracking System</h3>
 
 <input id="name" placeholder="Name">
 <input id="id" placeholder="Employee ID">
@@ -32,40 +35,49 @@ input,select,button{width:100%;padding:10px;margin:5px;border-radius:8px;border:
 </select>
 
 <button class="in" onclick="timeIn()">Time In</button>
+<button class="out" onclick="timeOut()">Time Out</button>
 
 <div id="map"></div>
+
+<h4>📊 Dashboard</h4>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>In</th>
+<th>Out</th>
+<th>Coords</th>
+</tr>
+</thead>
+<tbody id="log"></tbody>
+</table>
+
 </div>
 
-<!-- LEAFLET JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- FIREBASE -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, where, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBdAUCeLfIrkhor2eb-EPuIFgozvlBsgCI",
   authDomain: "attendance-system-4dd97.firebaseapp.com",
-  projectId: "attendance-system-4dd97",
-  storageBucket: "attendance-system-4dd97.firebasestorage.app",
-  messagingSenderId: "82851411696",
-  appId: "1:82851411696:web:180069f935b584c19bb435"
+  projectId: "attendance-system-4dd97"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// INIT MAP
+// MAP
 let map = L.map('map').setView([15.5,120.9], 13);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
- maxZoom: 19
-}).addTo(map);
-
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 let markers = [];
 
-// GET GPS
+// TIME
+function now(){return new Date().toLocaleString();}
+
+// GPS
 function getLocation(){
  return new Promise(resolve=>{
   navigator.geolocation.getCurrentPosition(pos=>{
@@ -79,9 +91,9 @@ function getLocation(){
 
 // TIME IN
 window.timeIn = async function(){
- let namev = document.getElementById("name").value;
- let idv = document.getElementById("id").value;
- let purposev = document.getElementById("purpose").value;
+ let namev=name.value;
+ let idv=id.value;
+ let purposev=purpose.value;
 
  if(!namev||!idv||!purposev){
   alert("Fill all fields");
@@ -94,24 +106,54 @@ window.timeIn = async function(){
   name:namev,
   id:idv,
   purpose:purposev,
+  timeIn:now(),
+  timeOut:"",
   lat:loc.lat,
-  lng:loc.lng,
-  time:new Date().toLocaleString()
+  lng:loc.lng
  });
 
- alert("✅ Saved");
+ alert("✅ Time In saved");
 }
 
-// REALTIME MAP
+// TIME OUT
+window.timeOut = async function(){
+ let idv=id.value;
+
+ const q = query(collection(db,"attendance"), where("id","==",idv));
+ const snap = await getDocs(q);
+
+ snap.forEach(async (d)=>{
+  await updateDoc(doc(db,"attendance",d.id),{
+   timeOut: now()
+  });
+ });
+
+ alert("✅ Time Out saved");
+}
+
+// REALTIME UPDATE
 onSnapshot(collection(db,"attendance"),(snapshot)=>{
+ let log=document.getElementById("log");
+
+ log.innerHTML="";
  markers.forEach(m=>map.removeLayer(m));
  markers=[];
 
  snapshot.forEach(doc=>{
-  let r = doc.data();
+  let r=doc.data();
 
+  // TABLE
+  log.innerHTML+=`
+  <tr>
+    <td>${r.name}</td>
+    <td>${r.timeIn}</td>
+    <td>${r.timeOut || "-"}</td>
+    <td>${r.lat?.toFixed(5)}, ${r.lng?.toFixed(5)}</td>
+  </tr>`;
+
+  // MAP
   if(r.lat && r.lng){
-   let m = L.marker([r.lat,r.lng]).addTo(map)
+   let m=L.marker([r.lat,r.lng]).addTo(map)
    .bindPopup(`<b>${r.name}</b><br>${r.purpose}`);
    markers.push(m);
   }
