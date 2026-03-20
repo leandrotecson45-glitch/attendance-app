@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QA Full Tracking System</title>
+
+<title>QA Tracking System</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
@@ -13,16 +14,16 @@ body{font-family:Arial;background:#0f2027;color:white;text-align:center}
 input,select,button{width:100%;padding:10px;margin:5px;border-radius:8px;border:none}
 .in{background:#00c853}
 .out{background:#d50000}
-#map{height:300px;margin-top:10px;border-radius:10px}
+#map{height:300px;margin-top:10px}
 table{width:100%;font-size:11px;margin-top:10px}
 td,th{border:1px solid #fff3;padding:5px}
 </style>
 </head>
 
 <body>
-<div class="container">
 
-<h3>📍 QA Full Tracking System</h3>
+<div class="container">
+<h3>📍 QA Tracking</h3>
 
 <input id="name" placeholder="Name">
 <input id="id" placeholder="Employee ID">
@@ -39,7 +40,7 @@ td,th{border:1px solid #fff3;padding:5px}
 
 <div id="map"></div>
 
-<h4>📊 Dashboard</h4>
+<h4>Dashboard</h4>
 <table>
 <thead>
 <tr>
@@ -54,111 +55,127 @@ td,th{border:1px solid #fff3;padding:5px}
 
 </div>
 
+<!-- LEAFLET -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, where, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+<!-- FIREBASE (NO MODULE VERSION) -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
-const firebaseConfig = {
+<script>
+
+// 🔥 CONFIG
+var firebaseConfig = {
   apiKey: "AIzaSyBdAUCeLfIrkhor2eb-EPuIFgozvlBsgCI",
   authDomain: "attendance-system-4dd97.firebaseapp.com",
   projectId: "attendance-system-4dd97"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+firebase.initializeApp(firebaseConfig);
+var db = firebase.firestore();
 
 // MAP
-let map = L.map('map').setView([15.5,120.9], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-let markers = [];
+var map = L.map('map').setView([15.5,120.9], 13);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+ maxZoom: 19
+}).addTo(map);
+
+var markers = [];
 
 // TIME
-function now(){return new Date().toLocaleString();}
+function now(){
+ return new Date().toLocaleString();
+}
 
 // GPS
-function getLocation(){
- return new Promise(resolve=>{
-  navigator.geolocation.getCurrentPosition(pos=>{
-   resolve({
-    lat: pos.coords.latitude,
-    lng: pos.coords.longitude
-   });
-  },()=>alert("Enable GPS"));
+function getLocation(callback){
+ navigator.geolocation.getCurrentPosition(function(pos){
+  callback(pos.coords.latitude, pos.coords.longitude);
+ }, function(){
+  alert("Enable GPS");
  });
 }
 
 // TIME IN
-window.timeIn = async function(){
- let namev=name.value;
- let idv=id.value;
- let purposev=purpose.value;
+function timeIn(){
+ var namev = document.getElementById("name").value;
+ var idv = document.getElementById("id").value;
+ var purposev = document.getElementById("purpose").value;
 
- if(!namev||!idv||!purposev){
+ if(!namev || !idv || !purposev){
   alert("Fill all fields");
   return;
  }
 
- let loc = await getLocation();
+ getLocation(function(lat,lng){
 
- await addDoc(collection(db,"attendance"),{
-  name:namev,
-  id:idv,
-  purpose:purposev,
-  timeIn:now(),
-  timeOut:"",
-  lat:loc.lat,
-  lng:loc.lng
+  db.collection("attendance").add({
+   name: namev,
+   id: idv,
+   purpose: purposev,
+   timeIn: now(),
+   timeOut: "",
+   lat: lat,
+   lng: lng
+  }).then(function(){
+   alert("✅ Time In saved");
+  });
+
  });
-
- alert("✅ Time In saved");
 }
 
 // TIME OUT
-window.timeOut = async function(){
- let idv=id.value;
+function timeOut(){
+ var idv = document.getElementById("id").value;
 
- const q = query(collection(db,"attendance"), where("id","==",idv));
- const snap = await getDocs(q);
-
- snap.forEach(async (d)=>{
-  await updateDoc(doc(db,"attendance",d.id),{
-   timeOut: now()
+ db.collection("attendance")
+ .where("id","==",idv)
+ .get()
+ .then(function(snapshot){
+  snapshot.forEach(function(doc){
+   db.collection("attendance").doc(doc.id).update({
+    timeOut: now()
+   });
   });
+  alert("✅ Time Out saved");
  });
-
- alert("✅ Time Out saved");
 }
 
-// REALTIME UPDATE
-onSnapshot(collection(db,"attendance"),(snapshot)=>{
- let log=document.getElementById("log");
+// REALTIME
+db.collection("attendance").onSnapshot(function(snapshot){
 
- log.innerHTML="";
- markers.forEach(m=>map.removeLayer(m));
- markers=[];
+ var log = document.getElementById("log");
+ log.innerHTML = "";
 
- snapshot.forEach(doc=>{
-  let r=doc.data();
+ markers.forEach(function(m){
+  map.removeLayer(m);
+ });
+ markers = [];
+
+ snapshot.forEach(function(doc){
+
+  var r = doc.data();
 
   // TABLE
-  log.innerHTML+=`
+  log.innerHTML += `
   <tr>
     <td>${r.name}</td>
     <td>${r.timeIn}</td>
     <td>${r.timeOut || "-"}</td>
-    <td>${r.lat?.toFixed(5)}, ${r.lng?.toFixed(5)}</td>
+    <td>${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}</td>
   </tr>`;
 
   // MAP
-  if(r.lat && r.lng){
-   let m=L.marker([r.lat,r.lng]).addTo(map)
-   .bindPopup(`<b>${r.name}</b><br>${r.purpose}`);
-   markers.push(m);
-  }
+  var marker = L.marker([r.lat, r.lng]).addTo(map)
+   .bindPopup(r.name);
+
+  markers.push(marker);
+
  });
+
 });
+
 </script>
 
 </body>
