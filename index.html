@@ -3,31 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Realtime QA Attendance</title>
-
-<link rel="manifest" href="manifest.json">
+<title>Realtime Attendance</title>
 
 <style>
-body{font-family:Arial;margin:0;background:#0f2027;color:white}
-.container{max-width:420px;margin:auto;padding:15px}
-input,select,button{width:100%;padding:10px;margin:5px 0;border-radius:8px;border:none}
+body{font-family:Arial;background:#0f2027;color:white;text-align:center}
+.container{max-width:400px;margin:auto;padding:20px}
+input,select,button{width:100%;padding:10px;margin:5px;border-radius:8px;border:none}
 .in{background:#00c853;color:white}
 .out{background:#d50000;color:white}
-.admin{background:#2962ff;color:white}
-table{width:100%;font-size:11px;margin-top:10px}
-th,td{border:1px solid #fff3;padding:5px}
+table{width:100%;font-size:12px;margin-top:10px}
+td,th{border:1px solid #fff3;padding:5px}
 </style>
 </head>
 
 <body>
 <div class="container">
-<h3>📍 Realtime QA Attendance</h3>
+<h3>📍 Realtime Attendance</h3>
 
-<input id="name" placeholder="Employee Name">
+<input id="name" placeholder="Name">
 <input id="id" placeholder="Employee ID">
 
 <select id="purpose">
-<option value="">Select Purpose</option>
+<option value="">Purpose</option>
 <option>Inspection</option>
 <option>Validation</option>
 <option>Site Visit</option>
@@ -35,14 +32,12 @@ th,td{border:1px solid #fff3;padding:5px}
 
 <button class="in" onclick="timeIn()">Time In</button>
 <button class="out" onclick="timeOut()">Time Out</button>
-<button class="admin" onclick="toggleAdmin()">📊 Dashboard</button>
 
-<div id="dashboard" style="display:none">
+<h4>📊 Dashboard</h4>
 <table>
 <thead>
 <tr>
 <th>Name</th>
-<th>Purpose</th>
 <th>In</th>
 <th>Out</th>
 <th>Location</th>
@@ -51,90 +46,95 @@ th,td{border:1px solid #fff3;padding:5px}
 <tbody id="log"></tbody>
 </table>
 </div>
-</div>
 
-<!-- FIREBASE -->
 <script type="module">
+// 🔥 FIREBASE IMPORT (TAMA NA ITO)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, addDoc, onSnapshot, query, where, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+// 🔥 CONFIG MO (NAILAGAY KO NA)
 const firebaseConfig = {
   apiKey: "AIzaSyBdAUCeLfIrkhor2eb-EPuIFgozvlBsgCI",
   authDomain: "attendance-system-4dd97.firebaseapp.com",
   projectId: "attendance-system-4dd97",
   storageBucket: "attendance-system-4dd97.firebasestorage.app",
   messagingSenderId: "82851411696",
-  appId: "1:82851411696:web:180069f935b584c19bb435",
-  measurementId: "G-N6DD1MDKVB"
+  appId: "1:82851411696:web:180069f935b584c19bb435"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-function now(){return new Date().toLocaleString();}
+// TIME FUNCTION
+function now(){
+  return new Date().toLocaleString();
+}
 
+// GPS
 function getLocation(){
- return new Promise(resolve=>{
-  navigator.geolocation.getCurrentPosition(pos=>{
-   resolve(`${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`);
-  },()=>resolve("No GPS"));
- });
-}
-
-window.timeIn = async function(){
- let namev=name.value;
- let idv=id.value;
- let purposev=purpose.value;
-
- let loc = await getLocation();
-
- await addDoc(collection(db,"attendance"),{
-  name:namev,
-  id:idv,
-  purpose:purposev,
-  timeIn:now(),
-  timeOut:"",
-  location:loc
- });
-
- alert("✅ Time In saved (Realtime)");
-}
-
-window.timeOut = async function(){
- let idv=id.value;
-
- const q = query(collection(db,"attendance"), where("id","==",idv));
- const snapshot = await getDocs(q);
-
- snapshot.forEach(async (d)=>{
-  await updateDoc(doc(db,"attendance",d.id),{
-    timeOut: now()
+  return new Promise(resolve=>{
+    navigator.geolocation.getCurrentPosition(pos=>{
+      resolve(`${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`);
+    },()=>resolve("No GPS"));
   });
- });
-
- alert("✅ Time Out updated");
 }
 
-window.toggleAdmin = function(){
- let d=document.getElementById("dashboard");
- d.style.display=d.style.display==='none'?'block':'none';
+// ✅ TIME IN
+window.timeIn = async function(){
+  let namev = name.value;
+  let idv = id.value;
+  let purposev = purpose.value;
+
+  if(!namev || !idv || !purposev){
+    alert("Fill all fields");
+    return;
+  }
+
+  let loc = await getLocation();
+
+  await addDoc(collection(db,"attendance"),{
+    name:namev,
+    id:idv,
+    purpose:purposev,
+    timeIn:now(),
+    timeOut:"",
+    location:loc
+  });
+
+  alert("✅ Time In saved");
 }
 
+// ✅ TIME OUT
+window.timeOut = async function(){
+  let idv = id.value;
+
+  const q = query(collection(db,"attendance"), where("id","==",idv));
+  const snapshot = await getDocs(q);
+
+  snapshot.forEach(async (d)=>{
+    await updateDoc(doc(db,"attendance",d.id),{
+      timeOut: now()
+    });
+  });
+
+  alert("✅ Time Out updated");
+}
+
+// 🔥 REALTIME DASHBOARD
 onSnapshot(collection(db,"attendance"),(snapshot)=>{
- let log=document.getElementById("log");
- log.innerHTML="";
- snapshot.forEach(doc=>{
-  let r=doc.data();
-  log.innerHTML+=`<tr>
-  <td>${r.name}</td>
-  <td>${r.purpose}</td>
-  <td>${r.timeIn}</td>
-  <td>${r.timeOut||"-"}</td>
-  <td>${r.location}</td>
-  </tr>`;
- });
+  log.innerHTML="";
+  snapshot.forEach(doc=>{
+    let r = doc.data();
+    log.innerHTML += `
+    <tr>
+      <td>${r.name}</td>
+      <td>${r.timeIn}</td>
+      <td>${r.timeOut || "-"}</td>
+      <td>${r.location}</td>
+    </tr>`;
+  });
 });
-</script>
 
+</script>
 </body>
 </html>
