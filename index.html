@@ -1,24 +1,30 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Realtime Attendance</title>
+
+<title>QA Tracking with Photo</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
 body{font-family:Arial;background:#0f2027;color:white;text-align:center}
-.container{max-width:400px;margin:auto;padding:20px}
+.container{max-width:420px;margin:auto;padding:15px}
 input,select,button{width:100%;padding:10px;margin:5px;border-radius:8px;border:none}
-.in{background:#00c853;color:white}
-.out{background:#d50000;color:white}
-table{width:100%;font-size:12px;margin-top:10px}
+.in{background:#00c853}
+.out{background:#d50000}
+#map{height:300px;margin-top:10px}
+table{width:100%;font-size:11px;margin-top:10px}
 td,th{border:1px solid #fff3;padding:5px}
+img{width:50px;border-radius:5px}
 </style>
 </head>
 
 <body>
+
 <div class="container">
-<h3>📍 Realtime Attendance</h3>
+<h3>📍 QA Tracking + Photo</h3>
 
 <input id="name" placeholder="Name">
 <input id="id" placeholder="Employee ID">
@@ -30,114 +36,157 @@ td,th{border:1px solid #fff3;padding:5px}
 <option>Site Visit</option>
 </select>
 
+<input type="file" id="photo" accept="image/*">
+
 <button class="in" onclick="timeIn()">Time In</button>
 <button class="out" onclick="timeOut()">Time Out</button>
 
-<h4>📊 Dashboard</h4>
+<div id="map"></div>
+
+<h4>Dashboard</h4>
 <table>
 <thead>
 <tr>
 <th>Name</th>
-<th>Time In</th>
-<th>Time Out</th>
-<th>Location</th>
+<th>In</th>
+<th>Out</th>
+<th>Photo</th>
+<th>Coords</th>
 </tr>
 </thead>
 <tbody id="log"></tbody>
 </table>
+
 </div>
 
-<script type="module">
-// ✅ FIREBASE IMPORT (WORKING)
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, where, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-// ✅ YOUR CONFIG (NAKALAGAY NA)
-const firebaseConfig = {
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+<script>
+var firebaseConfig = {
   apiKey: "AIzaSyBdAUCeLfIrkhor2eb-EPuIFgozvlBsgCI",
   authDomain: "attendance-system-4dd97.firebaseapp.com",
-  projectId: "attendance-system-4dd97",
-  storageBucket: "attendance-system-4dd97.firebasestorage.app",
-  messagingSenderId: "82851411696",
-  appId: "1:82851411696:web:180069f935b584c19bb435"
+  projectId: "attendance-system-4dd97"
 };
 
-// INIT
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+firebase.initializeApp(firebaseConfig);
+var db = firebase.firestore();
+
+// MAP
+var map = L.map('map').setView([15.5,120.9], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+var markers = [];
 
 // TIME
-function now(){
-  return new Date().toLocaleString();
+function now(){ return new Date().toLocaleString(); }
+
+// READ PHOTO
+function getPhotoBase64(file, callback){
+ var reader = new FileReader();
+ reader.onload = function(){
+  callback(reader.result);
+ };
+ reader.readAsDataURL(file);
 }
 
 // GPS
-function getLocation(){
-  return new Promise(resolve=>{
-    navigator.geolocation.getCurrentPosition(pos=>{
-      resolve(`${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`);
-    },()=>resolve("No GPS"));
-  });
+function getLocation(callback){
+ navigator.geolocation.getCurrentPosition(function(pos){
+  callback(pos.coords.latitude, pos.coords.longitude);
+ }, function(){
+  alert("Enable GPS");
+ });
 }
 
-// TIME IN
-window.timeIn = async function(){
-  let namev = document.getElementById("name").value;
-  let idv = document.getElementById("id").value;
-  let purposev = document.getElementById("purpose").value;
+// TIME IN WITH PHOTO
+function timeIn(){
+ var namev = document.getElementById("name").value;
+ var idv = document.getElementById("id").value;
+ var purposev = document.getElementById("purpose").value;
+ var file = document.getElementById("photo").files[0];
 
-  if(!namev || !idv || !purposev){
-    alert("Fill all fields");
-    return;
-  }
+ if(!namev || !idv || !purposev){
+  alert("Fill all fields");
+  return;
+ }
 
-  let loc = await getLocation();
+ if(!file){
+  alert("Upload photo required");
+  return;
+ }
 
-  await addDoc(collection(db,"attendance"),{
-    name:namev,
-    id:idv,
-    purpose:purposev,
-    timeIn:now(),
-    timeOut:"",
-    location:loc
+ getPhotoBase64(file, function(photoData){
+
+  getLocation(function(lat,lng){
+
+   db.collection("attendance").add({
+    name: namev,
+    id: idv,
+    purpose: purposev,
+    timeIn: now(),
+    timeOut: "",
+    lat: lat,
+    lng: lng,
+    photo: photoData
+   }).then(function(){
+    alert("✅ Time In with photo saved");
+   });
+
   });
 
-  alert("✅ Time In saved");
+ });
 }
 
 // TIME OUT
-window.timeOut = async function(){
-  let idv = document.getElementById("id").value;
+function timeOut(){
+ var idv = document.getElementById("id").value;
 
-  const q = query(collection(db,"attendance"), where("id","==",idv));
-  const snapshot = await getDocs(q);
-
-  snapshot.forEach(async (d)=>{
-    await updateDoc(doc(db,"attendance",d.id),{
-      timeOut: now()
-    });
+ db.collection("attendance")
+ .where("id","==",idv)
+ .get()
+ .then(function(snapshot){
+  snapshot.forEach(function(doc){
+   db.collection("attendance").doc(doc.id).update({
+    timeOut: now()
+   });
   });
-
-  alert("✅ Time Out updated");
+  alert("✅ Time Out saved");
+ });
 }
 
-// REALTIME VIEW
-onSnapshot(collection(db,"attendance"),(snapshot)=>{
-  let log = document.getElementById("log");
-  log.innerHTML="";
+// REALTIME
+db.collection("attendance").onSnapshot(function(snapshot){
 
-  snapshot.forEach(doc=>{
-    let r = doc.data();
-    log.innerHTML += `
-    <tr>
-      <td>${r.name}</td>
-      <td>${r.timeIn}</td>
-      <td>${r.timeOut || "-"}</td>
-      <td>${r.location}</td>
-    </tr>`;
-  });
+ var log = document.getElementById("log");
+ log.innerHTML = "";
+
+ markers.forEach(function(m){ map.removeLayer(m); });
+ markers = [];
+
+ snapshot.forEach(function(doc){
+
+  var r = doc.data();
+
+  log.innerHTML += `
+  <tr>
+    <td>${r.name}</td>
+    <td>${r.timeIn}</td>
+    <td>${r.timeOut || "-"}</td>
+    <td><img src="${r.photo}"></td>
+    <td>${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}</td>
+  </tr>`;
+
+  var marker = L.marker([r.lat, r.lng]).addTo(map)
+   .bindPopup(`<b>${r.name}</b><br><img src="${r.photo}" width="100">`);
+
+  markers.push(marker);
+
+ });
+
 });
-
 </script>
+
 </body>
 </html>
