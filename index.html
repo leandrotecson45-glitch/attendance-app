@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QA Live Tracker</title>
+<title>QA Live Map</title>
 
+<!-- LEAFLET CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
@@ -35,8 +36,11 @@ input,select,button{width:100%;padding:10px;margin:5px;border-radius:8px;border:
 <div id="map"></div>
 </div>
 
+<!-- LEAFLET JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- FIREBASE -->
 <script type="module">
-// FIREBASE
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -52,70 +56,68 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// MAP
-import L from "https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js";
-
+// INIT MAP
 let map = L.map('map').setView([15.5,120.9], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+ maxZoom: 19
+}).addTo(map);
 
 let markers = [];
 
-// GPS
+// GET GPS
 function getLocation(){
  return new Promise(resolve=>{
   navigator.geolocation.getCurrentPosition(pos=>{
-    resolve({
-      lat: pos.coords.latitude,
-      lng: pos.coords.longitude
-    });
-  });
+   resolve({
+    lat: pos.coords.latitude,
+    lng: pos.coords.longitude
+   });
+  },()=>alert("Enable GPS"));
  });
 }
 
-// TIME IN + SAVE
+// TIME IN
 window.timeIn = async function(){
- let namev = name.value;
- let idv = id.value;
- let purposev = purpose.value;
+ let namev = document.getElementById("name").value;
+ let idv = document.getElementById("id").value;
+ let purposev = document.getElementById("purpose").value;
 
  if(!namev||!idv||!purposev){
-   alert("Fill all fields");
-   return;
+  alert("Fill all fields");
+  return;
  }
 
  let loc = await getLocation();
 
  await addDoc(collection(db,"attendance"),{
-   name:namev,
-   id:idv,
-   purpose:purposev,
-   lat:loc.lat,
-   lng:loc.lng,
-   time:new Date().toLocaleString()
+  name:namev,
+  id:idv,
+  purpose:purposev,
+  lat:loc.lat,
+  lng:loc.lng,
+  time:new Date().toLocaleString()
  });
 
- alert("✅ Location Saved");
+ alert("✅ Saved");
 }
 
-// REALTIME MAP UPDATE
+// REALTIME MAP
 onSnapshot(collection(db,"attendance"),(snapshot)=>{
  markers.forEach(m=>map.removeLayer(m));
  markers=[];
 
  snapshot.forEach(doc=>{
-   let r = doc.data();
+  let r = doc.data();
 
-   let marker = L.marker([r.lat,r.lng]).addTo(map)
-   .bindPopup(`
-     <b>${r.name}</b><br>
-     ${r.purpose}<br>
-     ${r.time}
-   `);
-
-   markers.push(marker);
+  if(r.lat && r.lng){
+   let m = L.marker([r.lat,r.lng]).addTo(map)
+   .bindPopup(`<b>${r.name}</b><br>${r.purpose}`);
+   markers.push(m);
+  }
  });
 });
-
 </script>
+
 </body>
 </html>
