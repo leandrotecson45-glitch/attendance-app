@@ -3,22 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Realtime Attendance</title>
+<title>QA Live Tracker</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
 body{font-family:Arial;background:#0f2027;color:white;text-align:center}
-.container{max-width:400px;margin:auto;padding:20px}
+.container{max-width:420px;margin:auto;padding:15px}
 input,select,button{width:100%;padding:10px;margin:5px;border-radius:8px;border:none}
 .in{background:#00c853;color:white}
-.out{background:#d50000;color:white}
-table{width:100%;font-size:12px;margin-top:10px}
-td,th{border:1px solid #fff3;padding:5px}
+#map{height:300px;margin-top:10px;border-radius:10px}
 </style>
 </head>
 
 <body>
 <div class="container">
-<h3>📍 Realtime Attendance</h3>
+<h3>📍 QA Live Tracker</h3>
 
 <input id="name" placeholder="Name">
 <input id="id" placeholder="Employee ID">
@@ -31,28 +31,15 @@ td,th{border:1px solid #fff3;padding:5px}
 </select>
 
 <button class="in" onclick="timeIn()">Time In</button>
-<button class="out" onclick="timeOut()">Time Out</button>
 
-<h4>📊 Dashboard</h4>
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th>Time In</th>
-<th>Time Out</th>
-<th>Location</th>
-</tr>
-</thead>
-<tbody id="log"></tbody>
-</table>
+<div id="map"></div>
 </div>
 
 <script type="module">
-// ✅ FIREBASE IMPORT (WORKING)
+// FIREBASE
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, where, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// ✅ YOUR CONFIG (NAKALAGAY NA)
 const firebaseConfig = {
   apiKey: "AIzaSyBdAUCeLfIrkhor2eb-EPuIFgozvlBsgCI",
   authDomain: "attendance-system-4dd97.firebaseapp.com",
@@ -62,80 +49,71 @@ const firebaseConfig = {
   appId: "1:82851411696:web:180069f935b584c19bb435"
 };
 
-// INIT
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// TIME
-function now(){
-  return new Date().toLocaleString();
-}
+// MAP
+import L from "https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js";
+
+let map = L.map('map').setView([15.5,120.9], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+let markers = [];
 
 // GPS
 function getLocation(){
-  return new Promise(resolve=>{
-    navigator.geolocation.getCurrentPosition(pos=>{
-      resolve(`${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`);
-    },()=>resolve("No GPS"));
-  });
-}
-
-// TIME IN
-window.timeIn = async function(){
-  let namev = document.getElementById("name").value;
-  let idv = document.getElementById("id").value;
-  let purposev = document.getElementById("purpose").value;
-
-  if(!namev || !idv || !purposev){
-    alert("Fill all fields");
-    return;
-  }
-
-  let loc = await getLocation();
-
-  await addDoc(collection(db,"attendance"),{
-    name:namev,
-    id:idv,
-    purpose:purposev,
-    timeIn:now(),
-    timeOut:"",
-    location:loc
-  });
-
-  alert("✅ Time In saved");
-}
-
-// TIME OUT
-window.timeOut = async function(){
-  let idv = document.getElementById("id").value;
-
-  const q = query(collection(db,"attendance"), where("id","==",idv));
-  const snapshot = await getDocs(q);
-
-  snapshot.forEach(async (d)=>{
-    await updateDoc(doc(db,"attendance",d.id),{
-      timeOut: now()
+ return new Promise(resolve=>{
+  navigator.geolocation.getCurrentPosition(pos=>{
+    resolve({
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude
     });
   });
-
-  alert("✅ Time Out updated");
+ });
 }
 
-// REALTIME VIEW
-onSnapshot(collection(db,"attendance"),(snapshot)=>{
-  let log = document.getElementById("log");
-  log.innerHTML="";
+// TIME IN + SAVE
+window.timeIn = async function(){
+ let namev = name.value;
+ let idv = id.value;
+ let purposev = purpose.value;
 
-  snapshot.forEach(doc=>{
-    let r = doc.data();
-    log.innerHTML += `
-    <tr>
-      <td>${r.name}</td>
-      <td>${r.timeIn}</td>
-      <td>${r.timeOut || "-"}</td>
-      <td>${r.location}</td>
-    </tr>`;
-  });
+ if(!namev||!idv||!purposev){
+   alert("Fill all fields");
+   return;
+ }
+
+ let loc = await getLocation();
+
+ await addDoc(collection(db,"attendance"),{
+   name:namev,
+   id:idv,
+   purpose:purposev,
+   lat:loc.lat,
+   lng:loc.lng,
+   time:new Date().toLocaleString()
+ });
+
+ alert("✅ Location Saved");
+}
+
+// REALTIME MAP UPDATE
+onSnapshot(collection(db,"attendance"),(snapshot)=>{
+ markers.forEach(m=>map.removeLayer(m));
+ markers=[];
+
+ snapshot.forEach(doc=>{
+   let r = doc.data();
+
+   let marker = L.marker([r.lat,r.lng]).addTo(map)
+   .bindPopup(`
+     <b>${r.name}</b><br>
+     ${r.purpose}<br>
+     ${r.time}
+   `);
+
+   markers.push(marker);
+ });
 });
 
 </script>
