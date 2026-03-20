@@ -3,93 +3,154 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Field Attendance PWA</title>
+<title>QA Attendance + Dashboard</title>
 
 <link rel="manifest" href="manifest.json">
-<link rel="manifest" href="./manifest.json">
 
-<script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js');
-}
-</script>
 <style>
-body {font-family: Arial;margin:0;background:#0f2027;color:white;text-align:center}
+body{font-family:Arial;margin:0;background:#0f2027;color:white}
 .container{max-width:420px;margin:auto;padding:15px}
-input,button{width:100%;padding:10px;margin:5px 0;border-radius:8px;border:none}
+input,select,button{width:100%;padding:10px;margin:5px 0;border-radius:8px;border:none}
 .in{background:#00c853;color:white}
 .out{background:#d50000;color:white}
+.admin{background:#2962ff;color:white}
+table{width:100%;font-size:11px;margin-top:10px}
+th,td{border:1px solid #fff3;padding:5px}
+a{color:#00e5ff}
 </style>
 </head>
 
 <body>
 <div class="container">
-<h3>📱 Attendance App (Installable)</h3>
+<h3>📍 QA Field Attendance</h3>
 
-<input id="name" placeholder="Name">
+<input id="name" placeholder="Employee Name">
 <input id="id" placeholder="Employee ID">
+
+<select id="purpose">
+<option value="">Select Purpose</option>
+<option>Inspection</option>
+<option>Validation</option>
+<option>Site Visit</option>
+</select>
+
+<input type="file" id="photo" accept="image/*" capture="camera">
 
 <button class="in" onclick="timeIn()">Time In</button>
 <button class="out" onclick="timeOut()">Time Out</button>
+<button class="admin" onclick="toggleAdmin()">📊 Toggle Dashboard</button>
 
 <p id="status"></p>
+
+<div id="dashboard" style="display:none">
+<h4>📊 Admin Dashboard</h4>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Purpose</th>
+<th>Time In</th>
+<th>Location</th>
+</tr>
+</thead>
+<tbody id="log"></tbody>
+</table>
+</div>
 </div>
 
 <script>
 let records = JSON.parse(localStorage.getItem('records')||"{}");
 
+let siteLat = 15.500000;
+let siteLng = 120.900000;
+
 function now(){return new Date().toLocaleString();}
 
-function timeIn(){
- let idv=id.value;
+function getDistance(lat,lng){
+ return Math.sqrt(Math.pow(lat-siteLat,2)+Math.pow(lng-siteLng,2));
+}
+
+function getLocation(){
+ return new Promise(resolve=>{
+  navigator.geolocation.getCurrentPosition(pos=>{
+   resolve({lat:pos.coords.latitude,lng:pos.coords.longitude});
+  },()=>resolve(null));
+ });
+}
+
+function getPhoto(){
+ let file=document.getElementById("photo").files[0];
+ if(!file) return null;
+ return URL.createObjectURL(file);
+}
+
+async function timeIn(){
  let namev=name.value;
- if(!idv||!namev) return alert('Fill up');
- records[idv]={name:namev,in:now(),out:""};
+ let idv=id.value;
+ let purposev=purpose.value;
+ let photo=getPhoto();
+
+ if(!namev||!idv||!purposev) return alert("Complete all fields");
+ if(!photo) return alert("Photo required");
+
+ let loc=await getLocation();
+ if(!loc) return alert("Enable GPS");
+
+ let dist=getDistance(loc.lat,loc.lng);
+ if(dist>0.01){
+  alert("Wala ka sa assigned location!");
+  return;
+ }
+
+ let mapLink=`https://www.google.com/maps?q=${loc.lat},${loc.lng}`;
+
+ records[idv]={
+  name:namev,
+  purpose:purposev,
+  in:now(),
+  location:`${loc.lat.toFixed(6)},${loc.lng.toFixed(6)}`,
+  map:mapLink
+ };
+
  save();
- status.innerText="Time In Saved";
+ status.innerHTML="✅ Time In Saved";
+ render();
 }
 
 function timeOut(){
  let idv=id.value;
  if(records[idv]){
   records[idv].out=now();
+  save();
+  status.innerHTML="✅ Time Out Saved";
+ } else alert("No record");
+}
+
+function toggleAdmin(){
+ let d=document.getElementById("dashboard");
+ d.style.display=d.style.display==='none'?'block':'none';
+ render();
+}
+
+function render(){
+ let log=document.getElementById("log");
+ log.innerHTML="";
+ for(let k in records){
+  let r=records[k];
+  log.innerHTML+=`<tr>
+  <td>${r.name}</td>
+  <td>${r.purpose}</td>
+  <td>${r.in}</td>
+  <td><a href="${r.map}" target="_blank">View</a></td>
+  </tr>`;
  }
- save();
- status.innerText="Time Out Saved";
 }
 
 function save(){localStorage.setItem('records',JSON.stringify(records));}
 
-// SERVICE WORKER
-if ('serviceWorker' in navigator) {
- navigator.serviceWorker.register('sw.js');
-}
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js');}
+
+render();
 </script>
 </body>
 </html>
-
-
-<!-- manifest.json -->
-{
-  "name": "Field Attendance App",
-  "short_name": "Attendance",
-  "start_url": "index.html",
-  "display": "standalone",
-  "background_color": "#0f2027",
-  "theme_color": "#0f2027",
-  "icons": [
-    {
-      "src": "icon.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    }
-  ]
-}
-
-
-<!-- sw.js -->
-self.addEventListener('install', e => {
- e.waitUntil(
-  caches.open('app').then(cache => cache.addAll(['index.html']))
- );
-});
